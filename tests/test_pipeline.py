@@ -6,6 +6,8 @@ test is fast, free, and runs anywhere, and so it tests OUR wiring logic
 specifically, not the libraries underneath it.
 """
 
+import threading
+import time
 from unittest.mock import patch
 from models import ExtractedContent
 import pipeline
@@ -120,10 +122,58 @@ def test_summary_failure_does_not_block_ingestion():
     print("PASS: summarizer failure degrades gracefully instead of blocking ingestion")
 
 
+def test_concurrent_ingest_of_same_url_is_serialized():
+    """
+    Two threads both ingesting the SAME URL at the same time should never
+    both be inside the storage step simultaneously. This test proves the
+    per-doc_id lock in pipeline.py actually works, not just that the code
+    exists -- by making the critical section artificially slow (via a sleep
+    inside the mocked add_document) to widen the race window, then checking
+    that a shared counter never recorded more than one thread inside at once.
+    """
+    good_content = ExtractedContent(
+        url="https://example.com/racey", title="Racey Article",
+        text="Enough content here to form at least one chunk for the concurrency test to proceed.",
+        source_type="article"
+    )
+
+    concurrent_count = {"current": 0, "max_seen": 0}
+    lock_for_counter = threading.Lock()
+
+    class FakeStore:
+        def add_document(self, document):
+            with lock_for_counter:
+                concurrent_count["current"] += 1
+                concurrent_count["max_seen"] = max(concurrent_count["max_seen"], concurrent_count["current"])
+            time.sleep(0.05)  # widen the race window artificially
+            with lock_for_counter:
+                concurrent_count["current"] -= 1
+
+    with patch("pipeline.extract_article", return_value=good_content), \
+         patch("pipeline.is_youtube_url", return_value=False), \
+         patch("pipeline.get_vectorstore", return_value=FakeStore()):
+
+        threads = [
+            threading.Thread(target=pipeline.ingest_url, args=("https://example.com/racey",), kwargs={"skip_summary": True})
+            for _ in range(5)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert concurrent_count["max_seen"] == 1, (
+        f"Expected at most 1 thread inside the critical section at a time, "
+        f"but saw {concurrent_count['max_seen']} simultaneously -- the lock did not serialize access."
+    )
+    print("PASS: concurrent ingestion of the same URL is correctly serialized, never overlapping")
+
+
 if __name__ == "__main__":
     test_doc_id_is_deterministic()
     test_ingest_handles_extraction_failure()
     test_ingest_batch_isolates_failures()
     test_skip_summary_avoids_llm_call()
     test_summary_failure_does_not_block_ingestion()
+    test_concurrent_ingest_of_same_url_is_serialized()
     print("\nALL TESTS PASSED")

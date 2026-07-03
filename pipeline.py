@@ -20,7 +20,8 @@ Design decisions worth understanding:
 """
 
 import hashlib
-from typing import List, Optional
+import threading
+from typing import Dict, List, Optional
 
 from models import Document, IngestResult
 from extractors.web import extract_article
@@ -32,6 +33,43 @@ from vectorstore import VectorStore
 
 _embedder: Optional[LocalEmbeddingProvider] = None
 _vectorstore: Optional[VectorStore] = None
+
+# --- Per-document locking ---
+#
+# FastAPI runs synchronous endpoint functions (like ours) in a thread pool,
+# meaning two HTTP requests CAN genuinely execute this code in parallel on
+# separate OS threads. Without protection, two concurrent requests to
+# ingest the SAME URL would both extract, chunk, and summarize independently,
+# then both call add_document() around the same time — ChromaDB's upsert
+# isn't guaranteed atomic against a second concurrent writer, so the result
+# could be a corrupted mix of chunks from both calls.
+#
+# The fix: a lock per doc_id. If a second request comes in for a URL that's
+# already mid-ingestion, it waits for the first to finish before starting,
+# so writes to the vector store for that document are always sequential.
+#
+# Known tradeoff, accepted deliberately rather than engineered away: the
+# second request still redoes the full extraction + summarization work once
+# the lock releases — this fixes CORRECTNESS (no corrupted data), not
+# EFFICIENCY (still wastes one duplicate Claude API call in that scenario).
+# Solving the efficiency side would mean request coalescing (making the
+# second caller just wait for and reuse the first call's result), which is
+# real added complexity not justified at current scale. Revisit if
+# duplicate-URL races become common in practice.
+#
+# Second known tradeoff: this dict grows by one entry per distinct URL ever
+# ingested and nothing ever removes old entries. At thousands of URLs this
+# is trivial memory; at millions it would need an eviction strategy. Not a
+# concern at MVP scale.
+_doc_locks: Dict[str, threading.Lock] = {}
+_doc_locks_guard = threading.Lock()
+
+
+def _get_doc_lock(doc_id: str) -> threading.Lock:
+    with _doc_locks_guard:
+        if doc_id not in _doc_locks:
+            _doc_locks[doc_id] = threading.Lock()
+        return _doc_locks[doc_id]
 
 
 def get_embedder() -> LocalEmbeddingProvider:
@@ -61,51 +99,52 @@ def ingest_url(url: str, skip_summary: bool = False) -> IngestResult:
     """
     doc_id = _make_doc_id(url)
 
-    # Step 1: extract — route to the right extractor based on URL shape
-    extracted = extract_youtube(url) if is_youtube_url(url) else extract_article(url)
+    with _get_doc_lock(doc_id):
+        # Step 1: extract — route to the right extractor based on URL shape
+        extracted = extract_youtube(url) if is_youtube_url(url) else extract_article(url)
 
-    if not extracted.ok:
-        return IngestResult(url=url, success=False, doc_id=doc_id, error=extracted.error)
+        if not extracted.ok:
+            return IngestResult(url=url, success=False, doc_id=doc_id, error=extracted.error)
 
-    # Step 2: chunk
-    chunks = chunk_text(doc_id, extracted.text)
-    if not chunks:
-        return IngestResult(url=url, success=False, doc_id=doc_id,
-                             error="Extraction succeeded but produced no chunks (empty text after cleaning).")
+        # Step 2: chunk
+        chunks = chunk_text(doc_id, extracted.text)
+        if not chunks:
+            return IngestResult(url=url, success=False, doc_id=doc_id,
+                                 error="Extraction succeeded but produced no chunks (empty text after cleaning).")
 
-    # Step 3: summarize (once, here at ingest time — never at query time)
-    summary = ""
-    if not skip_summary:
+        # Step 3: summarize (once, here at ingest time — never at query time)
+        summary = ""
+        if not skip_summary:
+            try:
+                summary = summarize(extracted.title, extracted.text)
+            except Exception as e:
+                # A failed summary shouldn't block ingestion -- the document is
+                # still searchable without one, just less informative in results.
+                # But it MUST be visible somewhere, not silently swallowed --
+                # that's exactly what hid the missing ANTHROPIC_API_KEY setup
+                # issue during initial testing. A print is crude; swap for
+                # proper logging once this runs somewhere other than a laptop.
+                print(f"[WARNING] Summary generation failed for {url}: {e}")
+                summary = ""
+
+        document = Document(
+            doc_id=doc_id,
+            url=url,
+            title=extracted.title,
+            source_type=extracted.source_type,
+            full_text=extracted.text,
+            summary=summary,
+            chunks=chunks,
+        )
+
+        # Step 4: embed + store
         try:
-            summary = summarize(extracted.title, extracted.text)
+            get_vectorstore().add_document(document)
         except Exception as e:
-            # A failed summary shouldn't block ingestion -- the document is
-            # still searchable without one, just less informative in results.
-            # But it MUST be visible somewhere, not silently swallowed --
-            # that's exactly what hid the missing ANTHROPIC_API_KEY setup
-            # issue during initial testing. A print is crude; swap for
-            # proper logging once this runs somewhere other than a laptop.
-            print(f"[WARNING] Summary generation failed for {url}: {e}")
-            summary = ""
+            return IngestResult(url=url, success=False, doc_id=doc_id,
+                                 error=f"Storage failed: {e}")
 
-    document = Document(
-        doc_id=doc_id,
-        url=url,
-        title=extracted.title,
-        source_type=extracted.source_type,
-        full_text=extracted.text,
-        summary=summary,
-        chunks=chunks,
-    )
-
-    # Step 4: embed + store
-    try:
-        get_vectorstore().add_document(document)
-    except Exception as e:
-        return IngestResult(url=url, success=False, doc_id=doc_id,
-                             error=f"Storage failed: {e}")
-
-    return IngestResult(url=url, success=True, doc_id=doc_id, title=extracted.title)
+        return IngestResult(url=url, success=True, doc_id=doc_id, title=extracted.title)
 
 
 def ingest_urls(urls: List[str], skip_summary: bool = False) -> List[IngestResult]:
