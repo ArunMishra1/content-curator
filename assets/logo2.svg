@@ -1,0 +1,29 @@
+<svg width="480" height="120" viewBox="0 0 480 120" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Content Curator logo">
+  <!--
+    Content Curator logo (original work, part of this repo, Apache 2.0).
+    Concept: a ranked result list — three bars of decreasing relevance,
+    the top match highlighted with a spark. Mark on the left, wordmark right.
+    Colors chosen to stay readable on both light and dark GitHub themes.
+  -->
+
+  <!-- ===== Mark ===== -->
+  <g>
+    <!-- rounded square backdrop -->
+    <rect x="8" y="12" width="96" height="96" rx="22" fill="#1F2937"/>
+
+    <!-- ranked bars: top = best match (amber, full), then shorter, dimmer -->
+    <rect x="26" y="34" width="60" height="14" rx="7" fill="#F59E0B"/>
+    <rect x="26" y="56" width="44" height="14" rx="7" fill="#9CA3AF"/>
+    <rect x="26" y="78" width="30" height="14" rx="7" fill="#6B7280"/>
+
+    <!-- spark on the top match -->
+    <path d="M88 26 L91 33 L98 36 L91 39 L88 46 L85 39 L78 36 L85 33 Z" fill="#FDE68A"/>
+  </g>
+
+  <!-- ===== Wordmark ===== -->
+  <g font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="126" y="62" font-size="34" font-weight="700" fill="#F59E0B">content</text>
+    <text x="264" y="62" font-size="34" font-weight="700" fill="#6B7280">-curator</text>
+    <text x="127" y="90" font-size="15" font-weight="400" fill="#9CA3AF" letter-spacing="0.5">ingest anything · rank what matters</text>
+  </g>
+</svg>

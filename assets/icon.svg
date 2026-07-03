@@ -1,0 +1,16 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Content Curator icon">
+  <!--
+    Content Curator icon (original work, part of this repo, Apache 2.0).
+    Icon-only version: use for favicons, avatars, badges. For the full
+    logo with wordmark, see logo.svg.
+  -->
+  <rect x="12" y="12" width="96" height="96" rx="22" fill="#1F2937"/>
+
+  <!-- ranked bars: top = best match (amber, full), then shorter, dimmer -->
+  <rect x="30" y="34" width="60" height="14" rx="7" fill="#F59E0B"/>
+  <rect x="30" y="56" width="44" height="14" rx="7" fill="#9CA3AF"/>
+  <rect x="30" y="78" width="30" height="14" rx="7" fill="#6B7280"/>
+
+  <!-- spark on the top match -->
+  <path d="M92 26 L95 33 L102 36 L95 39 L92 46 L89 39 L82 36 L89 33 Z" fill="#FDE68A"/>
+</svg>

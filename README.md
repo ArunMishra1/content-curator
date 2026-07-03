@@ -1,14 +1,20 @@
+<p align="center">
+  <img src="assets/logo.png" alt="content-curator — ingest anything, rank what matters" width="480">
+</p>
+
 # AI Content Curator
 
 ## Contents
 
-- [What this does](#what-this-does)
-- [Status](#status)
-- [Quick start](#quick-start)
-- [Architecture at a glance](#architecture-at-a-glance)
-- [API](#api)
-- [Documentation index](#documentation-index)
-- [License](#license)
+- [AI Content Curator](#ai-content-curator)
+  - [Contents](#contents)
+  - [What this does](#what-this-does)
+  - [Status](#status)
+  - [Quick start](#quick-start)
+  - [Architecture at a glance](#architecture-at-a-glance)
+  - [API](#api)
+  - [Documentation index](#documentation-index)
+  - [License](#license)
 
 ## What this does
 
