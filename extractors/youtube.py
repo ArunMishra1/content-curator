@@ -10,8 +10,12 @@ will hit this.
 
 import re
 from urllib.parse import urlparse, parse_qs
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
+from youtube_transcript_api import (
+    YouTubeTranscriptApi,
+    TranscriptsDisabled,
+    NoTranscriptFound,
+    VideoUnavailable,
+)
 from models import ExtractedContent
 
 
@@ -47,8 +51,11 @@ def extract_youtube(url: str) -> ExtractedContent:
         )
 
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        full_text = " ".join(segment["text"] for segment in transcript_list)
+        # v1.x API: instantiate the client, then call .fetch(). Returns a
+        # FetchedTranscript object — iterable, each item is a snippet with
+        # a .text attribute (older versions returned plain dicts instead).
+        transcript = YouTubeTranscriptApi().fetch(video_id)
+        full_text = " ".join(snippet.text for snippet in transcript)
 
         if not full_text.strip():
             return ExtractedContent(
