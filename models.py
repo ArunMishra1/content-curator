@@ -34,6 +34,16 @@ class Chunk:
 
 
 @dataclass
+class IngestResult:
+    """Outcome of ingesting a single URL — used to build a batch ingest report."""
+    url: str
+    success: bool
+    doc_id: str = ""
+    title: str = ""
+    error: str = ""
+
+
+@dataclass
 class Document:
     """A fully processed document, ready to be stored and later retrieved."""
     doc_id: str
