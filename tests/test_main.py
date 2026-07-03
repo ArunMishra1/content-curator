@@ -143,6 +143,32 @@ def test_health_endpoint():
     print("PASS: /health reports index size correctly")
 
 
+def test_ingest_rate_limit_enforced():
+    """
+    /ingest is limited to 10/minute. This test calls it 11 times with valid
+    auth and expects the 11th to be rejected with 429 -- proving the limit
+    is real, not just present in code and never actually triggered.
+
+    We reset the limiter's internal counters first because every test in
+    this file authenticates with the SAME api key (there's only one valid
+    key in this app's auth model), so without resetting, whatever quota
+    earlier tests already used would eat into this test's budget and make
+    it flaky depending on test execution order.
+    """
+    main, client = make_client()
+    main.limiter.reset()
+
+    with patch("main.ingest_urls", return_value=[]):
+        statuses = []
+        for _ in range(11):
+            response = client.post("/ingest", json={"urls": ["https://example.com/a"]}, headers=AUTH_HEADERS)
+            statuses.append(response.status_code)
+
+    assert statuses[:10] == [200] * 10, f"Expected first 10 calls to succeed, got {statuses[:10]}"
+    assert statuses[10] == 429, f"Expected 11th call to be rate-limited (429), got {statuses[10]}"
+    print("PASS: /ingest enforces its 10/minute rate limit on the 11th call")
+
+
 if __name__ == "__main__":
     test_ingest_requires_api_key()
     test_ingest_rejects_wrong_api_key()
@@ -154,4 +180,5 @@ if __name__ == "__main__":
     test_recommend_rejects_empty_profile()
     test_recommend_rejects_out_of_range_top_n()
     test_health_endpoint()
+    test_ingest_rate_limit_enforced()
     print("\nALL TESTS PASSED")

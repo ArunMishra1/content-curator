@@ -15,11 +15,30 @@ gets consistent latency.
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from pipeline import ingest_urls, get_embedder, get_vectorstore
 from auth import verify_api_key
+
+
+def _rate_limit_key(request: Request) -> str:
+    """
+    Rate limit per API key, not per IP address. IP-based limiting is the
+    slowapi default, but it's the wrong unit here: multiple legitimate
+    callers can share an IP (behind a company NAT, for example), and a
+    single bad actor can rotate IPs trivially. Since every caller already
+    must send an API key, that's the correct identity to throttle on.
+    Falls back to IP only for the edge case of a request with no key at
+    all (which auth will reject anyway, before it can do any real damage).
+    """
+    return request.headers.get("X-API-Key") or get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key)
 
 
 @asynccontextmanager
@@ -38,6 +57,8 @@ app = FastAPI(
     description="Ingest content from URLs, get ranked recommendations for a reader profile.",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # ---- Request/response schemas ----
@@ -87,8 +108,9 @@ class RecommendResponse(BaseModel):
 # ---- Endpoints ----
 
 @app.post("/ingest", response_model=IngestResponse)
-def ingest(request: IngestRequest, api_key: str = Depends(verify_api_key)) -> IngestResponse:
-    results = ingest_urls(request.urls, skip_summary=request.skip_summary)
+@limiter.limit("10/minute")  # strict: each call can trigger real Claude API cost per URL
+def ingest(request: Request, body: IngestRequest, api_key: str = Depends(verify_api_key)) -> IngestResponse:
+    results = ingest_urls(body.urls, skip_summary=body.skip_summary)
     succeeded = sum(1 for r in results if r.success)
     return IngestResponse(
         total=len(results),
@@ -102,10 +124,11 @@ def ingest(request: IngestRequest, api_key: str = Depends(verify_api_key)) -> In
 
 
 @app.post("/recommend", response_model=RecommendResponse)
-def recommend(request: RecommendRequest, api_key: str = Depends(verify_api_key)) -> RecommendResponse:
-    raw_results = get_vectorstore().query(request.profile, top_n_documents=request.top_n)
+@limiter.limit("60/minute")  # looser: no LLM call here, just a vector lookup, much cheaper
+def recommend(request: Request, body: RecommendRequest, api_key: str = Depends(verify_api_key)) -> RecommendResponse:
+    raw_results = get_vectorstore().query(body.profile, top_n_documents=body.top_n)
     return RecommendResponse(
-        profile=request.profile,
+        profile=body.profile,
         results=[
             RecommendationResponse(
                 doc_id=r["doc_id"],
