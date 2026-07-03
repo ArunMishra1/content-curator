@@ -21,7 +21,7 @@ At MVP scale (thousands of chunks, not millions), the storage cost of this
 duplication is negligible compared to the simplicity it buys.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import chromadb
 from embeddings import EmbeddingProvider
 from models import Document
@@ -68,14 +68,27 @@ class VectorStore:
             metadatas=metadatas,
         )
 
-    def query(self, profile_text: str, top_n_documents: int = 5, chunks_to_scan: int = 30) -> List[Dict[str, Any]]:
+    def query(self, profile_text: str, top_n_documents: int = 5, chunks_to_scan: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         chunks_to_scan controls how many raw chunk matches we pull before
-        collapsing to documents. Needs to be bigger than top_n_documents
-        because multiple top chunks can belong to the same document — if we
-        only pulled 5 chunks and 3 happened to be from one document, we'd
-        return fewer than 5 distinct documents.
+        collapsing to documents. This MUST scale with how much is indexed:
+        a document with many chunks (a long article) can otherwise fill
+        every slot in a small fixed window, crowding out shorter but
+        genuinely relevant documents entirely -- not just ranking them
+        lower, but making them invisible. Confirmed in testing: a 181-chunk
+        document crowded out a 12-chunk document at chunks_to_scan=30.
+
+        If not specified, we scan generously relative to the index size
+        (at least 300, or the whole collection if smaller). This is a
+        blunt fix appropriate for MVP scale (hundreds to low thousands of
+        chunks) -- it does not scale to a huge multi-tenant index, where
+        the correct fix is a smarter per-document-capped search instead of
+        widening the net.
         """
+        total_chunks = self.count()
+        if chunks_to_scan is None:
+            chunks_to_scan = min(total_chunks, max(300, top_n_documents * 60))
+
         query_vector = self.embedder.embed([profile_text])[0]
 
         results = self.collection.query(

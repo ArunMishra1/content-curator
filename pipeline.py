@@ -79,9 +79,13 @@ def ingest_url(url: str, skip_summary: bool = False) -> IngestResult:
         try:
             summary = summarize(extracted.title, extracted.text)
         except Exception as e:
-            # A failed summary shouldn't block ingestion — the document is
+            # A failed summary shouldn't block ingestion -- the document is
             # still searchable without one, just less informative in results.
-            # We record this as a partial success, not a hard failure.
+            # But it MUST be visible somewhere, not silently swallowed --
+            # that's exactly what hid the missing ANTHROPIC_API_KEY setup
+            # issue during initial testing. A print is crude; swap for
+            # proper logging once this runs somewhere other than a laptop.
+            print(f"[WARNING] Summary generation failed for {url}: {e}")
             summary = ""
 
     document = Document(

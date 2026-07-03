@@ -47,6 +47,52 @@ def make_doc(doc_id, title, text, summary):
                      source_type="article", full_text=text, summary=summary, chunks=chunks)
 
 
+def test_large_document_does_not_crowd_out_small_document():
+    """
+    Regression test for a real bug found in manual testing: a document with
+    many chunks (e.g. a long Wikipedia article) could fill the entire raw
+    chunk-scan window, making a shorter but genuinely relevant document
+    invisible in results -- not just ranked lower, but completely absent.
+    """
+    test_dir = "./test_chroma_data_crowding"
+    shutil.rmtree(test_dir, ignore_errors=True)
+
+    store = VectorStore(embedder=FakeEmbedder(), persist_directory=test_dir, collection_name="test_crowding")
+
+    # Simulate a long tech document: 50 chunks, all strongly tech-relevant.
+    large_doc_chunks = [
+        Chunk(doc_id="large_doc", chunk_id=f"large_{i}", text="llm transformer model gpt", chunk_index=i)
+        for i in range(50)
+    ]
+    large_doc = Document(doc_id="large_doc", url="https://example.com/large", title="Huge LLM Article",
+                          source_type="article", full_text="...", summary="A very long article.",
+                          chunks=large_doc_chunks)
+
+    # Simulate a short, but still tech-relevant, document: just 2 chunks.
+    small_doc_chunks = [
+        Chunk(doc_id="small_doc", chunk_id="small_0", text="llm model", chunk_index=0),
+        Chunk(doc_id="small_doc", chunk_id="small_1", text="transformer attention", chunk_index=1),
+    ]
+    small_doc = Document(doc_id="small_doc", url="https://example.com/small", title="Short LLM Primer",
+                          source_type="article", full_text="...", summary="A short primer.",
+                          chunks=small_doc_chunks)
+
+    store.add_document(large_doc)
+    store.add_document(small_doc)
+
+    # Old fixed chunks_to_scan=30 would only ever see chunks from large_doc
+    # (which alone has 50) and never reach small_doc's 2 chunks.
+    results = store.query("llm transformer model", top_n_documents=5)
+    result_ids = [r["doc_id"] for r in results]
+
+    assert "small_doc" in result_ids, (
+        f"BUG: small_doc was crowded out of results entirely. Got: {result_ids}"
+    )
+    print("PASS: a document with few chunks is not crowded out by a document with many chunks")
+
+    shutil.rmtree(test_dir, ignore_errors=True)
+
+
 def run_test():
     test_dir = "./test_chroma_data"
     shutil.rmtree(test_dir, ignore_errors=True)  # clean slate each run
@@ -99,3 +145,4 @@ def run_test():
 
 if __name__ == "__main__":
     run_test()
+    test_large_document_does_not_crowd_out_small_document()

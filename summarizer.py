@@ -13,7 +13,16 @@ but there is no good free local option for decent-quality summarization).
 """
 
 import os
+from dotenv import load_dotenv
 from anthropic import Anthropic
+
+# Load .env into the environment. Without this, os.environ.get() below never
+# sees keys set in a .env file -- only ones exported directly in the shell.
+# This was a real gap: .env.example implied .env would "just work," but
+# nothing was actually loading it. Loading it here, at the point where the
+# key is consumed, means it works regardless of whether the caller is
+# main.py (the API server), pipeline.py (direct script use), or a test.
+load_dotenv()
 
 SUMMARIZER_MODEL = "claude-haiku-4-5-20251001"
 
