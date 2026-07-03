@@ -61,34 +61,36 @@ duplicate concurrent ingests, per-user API keys, multi-instance-safe storage.
 
 ## How to add a new content source pattern
 
+All file paths below are relative to `src/`.
+
 The system currently supports two source types (web articles, YouTube). If
 you want to add a new one (PDFs, podcast transcripts, Twitter threads,
 internal docs, etc.), here's the pattern to follow — modeled on how
-`extractors/youtube.py` was added alongside `extractors/web.py`.
+`src/extractors/youtube.py` was added alongside `src/extractors/web.py`.
 
 ### 1. Write a detector function
 
 A function that looks at a URL and returns `True`/`False` for whether this
 extractor should handle it. See `is_youtube_url()` in
-`extractors/youtube.py` for the pattern — usually just a hostname/path check.
+`src/extractors/youtube.py` for the pattern — usually just a hostname/path check.
 
 ### 2. Write the extractor
 
 A function `extract_<sourcetype>(url: str) -> ExtractedContent` that:
 - Fetches/accesses the content
 - Cleans it into plain text
-- Returns an `ExtractedContent` object (see `models.py`) with `ok=True` and
+- Returns an `ExtractedContent` object (see `src/models.py`) with `ok=True` and
   the text on success, or `error` set on failure — never raises an
   exception for expected failure modes (dead link, no content, access
   denied, etc.). Reserve real exceptions for truly unexpected situations.
 
-Look at `extractors/web.py` and `extractors/youtube.py` side by side — they
+Look at `src/extractors/web.py` and `src/extractors/youtube.py` side by side — they
 solve different fetching problems but return the identical shape, which is
-exactly why `pipeline.py` doesn't need to know which one ran.
+exactly why `src/pipeline.py` doesn't need to know which one ran.
 
 ### 3. Wire it into the router
 
-In `pipeline.py`'s `ingest_url()`, the line:
+In `src/pipeline.py`'s `ingest_url()`, the line:
 ```python
 extracted = extract_youtube(url) if is_youtube_url(url) else extract_article(url)
 ```

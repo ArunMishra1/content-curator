@@ -31,9 +31,9 @@ probably already documented there.
 Every module has a corresponding test file in `tests/` that runs standalone:
 
 ```bash
-PYTHONPATH=. python3 tests/test_vectorstore.py
-PYTHONPATH=. python3 tests/test_pipeline.py
-PYTHONPATH=. python3 tests/test_main.py
+PYTHONPATH=src python3 tests/test_vectorstore.py
+PYTHONPATH=src python3 tests/test_pipeline.py
+PYTHONPATH=src python3 tests/test_main.py
 ```
 
 Each should print `ALL TESTS PASSED`.
@@ -65,7 +65,7 @@ verified this way — see their code comments for the sabotage method used.
 - Docstrings explain **why**, not just what — a comment restating the code
   in English is not useful; a comment explaining the tradeoff or reasoning
   behind a non-obvious choice is.
-- Dataclasses (`models.py`) for shared data shapes — no ad-hoc dicts passed
+- Dataclasses (`src/models.py`) for shared data shapes — no ad-hoc dicts passed
   between modules with implicit field names.
 - Silent failure is treated as a bug. If something can fail, either handle
   it explicitly and visibly (a warning, a logged error) or let it raise.

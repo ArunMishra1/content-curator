@@ -34,7 +34,7 @@ python3 -m venv venv
 source venv/bin/activate
 python3 -m pip install -r requirements.txt
 cp .env.example .env   # then fill in ANTHROPIC_API_KEY and CURATOR_API_KEY
-python3 -m uvicorn main:app --reload
+python3 -m uvicorn main:app --reload --app-dir src
 ```
 
 ## Architecture at a glance
@@ -56,7 +56,7 @@ health check:
 - `POST /recommend` — get ranked recommendations for a reader profile
 - `GET /health` — liveness check, no auth required
 
-Full request/response shapes are in `main.py`'s Pydantic models, or via the
+Full request/response shapes are in `src/main.py`'s Pydantic models, or via the
 auto-generated docs at `http://localhost:8000/docs` once the server is running.
 
 ## Documentation index

@@ -23,7 +23,7 @@ Chosen deliberately for the MVP stage: zero cost, no API key friction, works
 offline, and quality is good enough to prove retrieval works. The
 `EmbeddingProvider` abstract class exists specifically so this can change
 later (e.g. to OpenAI or Voyage for better quality) without touching
-`chunking.py`, `vectorstore.py`, or `pipeline.py` — only `embeddings.py` and
+`src/chunking.py`, `src/vectorstore.py`, or `src/pipeline.py` — only `src/embeddings.py` and
 one line of config would change.
 
 ## Summarization: once, at ingest time, never at query time
@@ -69,8 +69,8 @@ Accepted for v1; tracked as the open problem in `TODO.md`.
 
 ## Singletons for the embedder and vector store
 
-Loading the embedding model takes a noticeable moment. `pipeline.py` and
-`main.py` create it once (`get_embedder()`) and reuse it everywhere, rather
+Loading the embedding model takes a noticeable moment. `src/pipeline.py` and
+`src/main.py` create it once (`get_embedder()`) and reuse it everywhere, rather
 than reloading per call — this matters more once the API is serving many
 requests than it does for a single script run.
 
@@ -79,7 +79,7 @@ requests than it does for a single script run.
 There is exactly one trust boundary right now — "has the key" vs. "doesn't"
 — not multiple users needing different permissions. Building session/token
 infrastructure for a permission model that doesn't exist yet is complexity
-with no current payoff. Contained in `auth.py`; upgrading to per-user keys
+with no current payoff. Contained in `src/auth.py`; upgrading to per-user keys
 later wouldn't require touching the endpoints, only how `verify_api_key`
 resolves a key to a caller.
 

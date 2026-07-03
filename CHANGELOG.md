@@ -2,6 +2,7 @@
 
 ## Contents
 
+- [2026-07-03 (restructure)](#2026-07-03-restructure)
 - [2026-07-03](#2026-07-03)
 - [2026-07-02 (evening)](#2026-07-02-evening)
 - [2026-07-02 (afternoon)](#2026-07-02-afternoon)
@@ -9,6 +10,24 @@
 
 All notable changes to this project, in the order they actually happened.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
+## 2026-07-03 (restructure)
+
+### Changed
+- All Python source files moved from the repo root into `src/` (including
+  the `extractors/` subpackage), matching the existing `tests/` convention.
+  Import statements inside the code were deliberately left unchanged — the
+  move is handled via `PYTHONPATH=src` (tests) and `--app-dir src`
+  (uvicorn), not by converting to a formally packaged project. Verified
+  `.env` loading and the `chroma_data/` relative path both still resolve to
+  the repo root correctly under this approach (confirmed by test before
+  committing to it, not assumed).
+- Added `.github/PULL_REQUEST_TEMPLATE.md`.
+- Note: file path references below this point in the changelog describe
+  where files were *at the time each entry was written* — e.g. "`pipeline.py`"
+  in earlier entries correctly refers to the repo root, not `src/pipeline.py`,
+  since that's where it actually was when that entry happened. Not
+  retroactively rewritten, to keep this file historically accurate.
 
 ## 2026-07-03
 

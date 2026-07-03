@@ -45,9 +45,9 @@ AI-generated summaries. See `README.md` for the user-facing overview,
   verified this way).
 - Run the full suite before considering any change complete:
   ```bash
-  PYTHONPATH=. python3 tests/test_vectorstore.py
-  PYTHONPATH=. python3 tests/test_pipeline.py
-  PYTHONPATH=. python3 tests/test_main.py
+  PYTHONPATH=src python3 tests/test_vectorstore.py
+  PYTHONPATH=src python3 tests/test_pipeline.py
+  PYTHONPATH=src python3 tests/test_main.py
   ```
 
 ## Known gaps — see TODO.md for the full list, but the two biggest:
@@ -68,7 +68,7 @@ AI-generated summaries. See `README.md` for the user-facing overview,
 - Type hints on all function signatures.
 - Docstrings/comments explain *why*, not *what* — don't add a comment that
   just restates the code in English.
-- Dataclasses for shared data shapes (`models.py`), not ad-hoc dicts passed
+- Dataclasses for shared data shapes (`src/models.py`), not ad-hoc dicts passed
   between modules.
 - Silent failure is not acceptable — anything that can fail either raises
   or logs visibly (see the `.env`-loading bug in `CHANGELOG.md` for why

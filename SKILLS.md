@@ -27,7 +27,7 @@ the hood six months from now.
 ## Techniques used
 
 - **Abstract base classes for swappable backends** (`EmbeddingProvider` in
-  `embeddings.py`) — define a contract once, write implementations against
+  `src/embeddings.py`) — define a contract once, write implementations against
   it, swap implementations without touching callers.
 - **Dependency injection via FastAPI's `Depends`** — auth and (implicitly)
   the rate limiter are wired in as dependencies, not hardcoded into each

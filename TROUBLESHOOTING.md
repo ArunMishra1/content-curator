@@ -62,7 +62,7 @@ The version originally pinned in `requirements.txt` (`0.6.3`) doesn't
 support Python 3.14. Fixed by pinning `1.2.4` instead — but if you're
 reading this because it broke again, the library's API changed between
 major versions (`0.x` used a static `get_transcript()` method; `1.x` uses
-an instance method `.fetch()`). Check `extractors/youtube.py` matches
+an instance method `.fetch()`). Check `src/extractors/youtube.py` matches
 whatever version actually installed:
 ```bash
 pip show youtube-transcript-api
@@ -119,12 +119,12 @@ Python import* showed it as correct.
 Fix: rename explicitly (a direct same-name rename can no-op on a
 case-insensitive filesystem, so go through a temp name):
 ```bash
-mv extractors/Youtube.py extractors/youtube_temp.py
-mv extractors/youtube_temp.py extractors/youtube.py
+mv src/extractors/Youtube.py src/extractors/youtube_temp.py
+mv src/extractors/youtube_temp.py src/extractors/youtube.py
 ```
 Then clear stale bytecode cache, which can also mask the fix:
 ```bash
-rm -rf extractors/__pycache__ __pycache__
+rm -rf src/extractors/__pycache__ __pycache__
 ```
 
 ---
@@ -148,8 +148,8 @@ python3 -c "import os; from dotenv import load_dotenv; load_dotenv(); print(bool
 If this prints `False`, your `.env` file either doesn't exist, isn't in the
 directory you're running from, or doesn't have the key set. Note: creating
 a `.env` file does nothing by itself — something has to load it
-(`python-dotenv`'s `load_dotenv()`, already wired into `summarizer.py` and
-`auth.py`). If you ever see a summary silently come back empty, check the
+(`python-dotenv`'s `load_dotenv()`, already wired into `src/summarizer.py` and
+`src/auth.py`). If you ever see a summary silently come back empty, check the
 terminal running `uvicorn` for a `[WARNING] Summary generation failed...`
 line — this failure is intentionally never swallowed silently.
 

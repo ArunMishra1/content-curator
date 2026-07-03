@@ -12,15 +12,15 @@
 
 The system has two flows: **ingest** (get content into the index) and
 **recommend** (get ranked content back out). Both are exposed over HTTP via
-FastAPI, but the underlying logic is decoupled from the API layer — `pipeline.py`
-and `vectorstore.py` work standalone, callable from a script, a test, or the API.
+FastAPI, but the underlying logic is decoupled from the API layer — `src/pipeline.py`
+and `src/vectorstore.py` work standalone, callable from a script, a test, or the API.
 
 ```
 INGEST FLOW
   URL
    |
    v
-[extractors/web.py or extractors/youtube.py]  -- fetch + clean text
+[src/extractors/web.py or src/extractors/youtube.py]  -- fetch + clean text
    |
    v
 [chunking.py]  -- split into ~500-char overlapping pieces
@@ -53,18 +53,20 @@ RECOMMEND FLOW
 
 ## Component responsibilities
 
+All files below live under `src/` (except `tests/`, which sits at the repo root alongside documentation and config).
+
 | File | Responsibility | Key design choice |
 |---|---|---|
-| `models.py` | Shared data shapes (`ExtractedContent`, `Chunk`, `Document`, `IngestResult`) | One source of truth for field names across all modules |
-| `embeddings.py` | Text -> vector | Abstract `EmbeddingProvider` interface; local model today, swappable to an API provider later without touching callers |
-| `extractors/web.py` | Webpage -> clean text | Uses `trafilatura` to strip nav/ads/comments — not a generic HTML parser |
-| `extractors/youtube.py` | YouTube video -> transcript text | Separate code path from web articles; different failure modes (captions disabled, region-locked) |
-| `chunking.py` | Long text -> overlapping ~500-char pieces | Small enough per-chunk embeddings stay precise; overlap prevents mid-sentence cuts losing meaning |
-| `summarizer.py` | Document -> short AI summary | Runs ONCE at ingest time, never at query time (cost/latency control); Claude Haiku, not a larger model, since summarizing is bulk/low-reasoning work |
-| `vectorstore.py` | Store + search vectors | Wraps ChromaDB; collapses chunk-level matches to document-level rankings, keeping each doc's best-scoring chunk |
-| `pipeline.py` | Orchestrates ingest end-to-end | Deterministic `doc_id` (hash of URL) enables safe upsert on re-ingestion; per-`doc_id` lock prevents concurrent-request races; batch ingestion isolates per-URL failures |
-| `auth.py` | API key verification | Single static key via `X-API-Key` header, timing-safe comparison |
-| `main.py` | HTTP layer | FastAPI app; loads the embedding model at startup (not per-request); rate limits `/ingest` (10/min) and `/recommend` (60/min), keyed by API key |
+| `src/models.py` | Shared data shapes (`ExtractedContent`, `Chunk`, `Document`, `IngestResult`) | One source of truth for field names across all modules |
+| `src/embeddings.py` | Text -> vector | Abstract `EmbeddingProvider` interface; local model today, swappable to an API provider later without touching callers |
+| `src/extractors/web.py` | Webpage -> clean text | Uses `trafilatura` to strip nav/ads/comments — not a generic HTML parser |
+| `src/extractors/youtube.py` | YouTube video -> transcript text | Separate code path from web articles; different failure modes (captions disabled, region-locked) |
+| `src/chunking.py` | Long text -> overlapping ~500-char pieces | Small enough per-chunk embeddings stay precise; overlap prevents mid-sentence cuts losing meaning |
+| `src/summarizer.py` | Document -> short AI summary | Runs ONCE at ingest time, never at query time (cost/latency control); Claude Haiku, not a larger model, since summarizing is bulk/low-reasoning work |
+| `src/vectorstore.py` | Store + search vectors | Wraps ChromaDB; collapses chunk-level matches to document-level rankings, keeping each doc's best-scoring chunk |
+| `src/pipeline.py` | Orchestrates ingest end-to-end | Deterministic `doc_id` (hash of URL) enables safe upsert on re-ingestion; per-`doc_id` lock prevents concurrent-request races; batch ingestion isolates per-URL failures |
+| `src/auth.py` | API key verification | Single static key via `X-API-Key` header, timing-safe comparison |
+| `src/main.py` | HTTP layer | FastAPI app; loads the embedding model at startup (not per-request); rate limits `/ingest` (10/min) and `/recommend` (60/min), keyed by API key |
 
 ## Data model
 
