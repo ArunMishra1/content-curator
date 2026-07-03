@@ -1,15 +1,43 @@
 # AI Content Curator
 
-Given a list of URLs, ingest and index their content. Given a reader profile
-("VP of Engineering, 30 minutes on LLMs"), return the top 5 most relevant
-pieces with a short summary of each.
+## Contents
+
+- [What this does](#what-this-does)
+- [Status](#status)
+- [Quick start](#quick-start)
+- [Architecture at a glance](#architecture-at-a-glance)
+- [API](#api)
+- [Documentation index](#documentation-index)
+- [License](#license)
+
+## What this does
+
+Given a list of URLs (articles or YouTube videos), ingest and index their
+content. Given a reader profile (e.g. "VP of Engineering who needs to
+understand LLMs in 30 minutes"), return the top ranked pieces of content
+with an AI-generated summary of each.
 
 ## Status
 
-Prototype / MVP. No auth, no multi-user support, single-node local vector
-store. Built to prove the retrieval pipeline works — not production-ready.
+Working MVP with real authentication, rate limiting, and concurrency
+safety — not a toy demo, but also not yet production-hardened. No
+multi-user account system, single-node local vector store, never
+load-tested. See [TODO.md](TODO.md) for the honest list of what's still
+missing before this could serve real, multiple users.
 
-## Architecture
+## Quick start
+
+Full walkthrough in [DEV_SETUP.md](DEV_SETUP.md). Short version:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install -r requirements.txt
+cp .env.example .env   # then fill in ANTHROPIC_API_KEY and CURATOR_API_KEY
+python3 -m uvicorn main:app --reload
+```
+
+## Architecture at a glance
 
 ```
 URL --> extractor (web or YouTube) --> chunker --> embedder --> ChromaDB
@@ -17,43 +45,35 @@ URL --> extractor (web or YouTube) --> chunker --> embedder --> ChromaDB
                                       summarizer (once, at ingest time)
 ```
 
-- `embeddings.py` — abstraction over embedding backends. Currently local
-  (sentence-transformers, free, no API key). Swappable to an API provider
-  later without touching the rest of the pipeline.
-- `extractors/web.py` — pulls clean article text from a webpage, stripping
-  nav/ads/comments (via trafilatura).
-- `extractors/youtube.py` — pulls video transcripts (via youtube-transcript-api).
-- `chunking.py` — splits document text into overlapping ~500-char chunks
-  for embedding.
-- `summarizer.py` — generates a short summary per document, once, at ingest
-  time (Claude Haiku). Never called at query time — that would be slow and
-  expensive on every `/recommend` call.
-- `models.py` — shared data shapes (ExtractedContent, Chunk, Document).
+Full breakdown of every module in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Still to build: `vectorstore.py` (ChromaDB wrapper), `pipeline.py`
-(orchestrates the full ingest flow), `main.py` (FastAPI app).
+## API
 
-## Known limitations (v1, accepted for now)
+Two authenticated endpoints (`X-API-Key` header required), plus a public
+health check:
 
-- Ranking is pure vector similarity between the profile text and content
-  chunks. This matches on topic, not on reading difficulty or time budget —
-  a highly technical paper can outrank a well-written primer on the same
-  topic.
-- YouTube video titles aren't fetched (would need a separate YouTube Data
-  API key) — video ID is used as a placeholder title.
-- No retry logic on failed URL fetches.
+- `POST /ingest` — add one or more URLs to the index
+- `POST /recommend` — get ranked recommendations for a reader profile
+- `GET /health` — liveness check, no auth required
 
-## Setup
+Full request/response shapes are in `main.py`'s Pydantic models, or via the
+auto-generated docs at `http://localhost:8000/docs` once the server is running.
 
-```bash
-pip install -r requirements.txt
-cp .env.example .env   # then fill in your real ANTHROPIC_API_KEY
-```
+## Documentation index
 
-## Running tests
-
-Each module has inline verification — see commit history / module docstrings
-for example usage until a proper test suite is added.
+| Doc | What's in it |
+|---|---|
+| [DEV_SETUP.md](DEV_SETUP.md) | Full local setup, running the server, running tests |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System structure — what each module does and how data flows through it |
+| [DESIGN.md](DESIGN.md) | *Why* things are built the way they are — the reasoning behind every non-obvious choice |
+| [TAXONOMY.md](TAXONOMY.md) | What the product can currently do, what's planned, and how to add a new content-source pattern |
+| [CHANGELOG.md](CHANGELOG.md) | Chronological history of what was built and fixed, and when |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Every real bug hit during development and its actual fix |
+| [PERFORMANCE.md](PERFORMANCE.md) | Known performance characteristics — and an honest list of what's never been measured |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev conventions, testing philosophy, PR expectations |
+| [SKILLS.md](SKILLS.md) | Tech stack and techniques used, with reasoning |
+| [TODO.md](TODO.md) | Roadmap — done, in progress, and backlog |
+| [CLAUDE.md](CLAUDE.md) | Context file for AI-assisted work on this repo |
 
 ## License
 

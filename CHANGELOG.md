@@ -1,0 +1,80 @@
+# Changelog
+
+## Contents
+
+- [2026-07-03](#2026-07-03)
+- [2026-07-02 (evening)](#2026-07-02-evening)
+- [2026-07-02 (afternoon)](#2026-07-02-afternoon)
+- [2026-07-02 (initial)](#2026-07-02-initial)
+
+All notable changes to this project, in the order they actually happened.
+Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
+## 2026-07-03
+
+### Added
+- Race condition fix: per-`doc_id` lock in `pipeline.py` serializes concurrent
+  ingestion of the same URL, preventing corrupted/interleaved writes to the
+  vector store. Verified with a test that sabotages the lock to confirm the
+  test actually catches the bug when the fix is absent.
+- Rate limiting via `slowapi`: 10 requests/minute on `/ingest` (real Claude
+  API cost per call), 60/minute on `/recommend` (cheap, no LLM call). Keyed
+  by API key, not IP address.
+- API key authentication (`auth.py`) on `/ingest` and `/recommend`, using a
+  single static key checked via the `X-API-Key` header with a timing-safe
+  comparison. `/health` intentionally left public.
+- `main.py`: FastAPI application with `/ingest`, `/recommend`, `/health`
+  endpoints. Embedding model loads at server startup, not per-request.
+
+### Fixed
+- `.env` file was never actually being loaded into the process — added
+  `python-dotenv` and `load_dotenv()` to `summarizer.py`. This had been
+  silently causing every summary to fail since the very first pipeline test;
+  the failure was invisible because it was swallowed without logging.
+- Summarizer failures now print a visible `[WARNING]` instead of failing
+  silently — the exact gap that hid the `.env` bug above.
+- Vector store's chunk-scan window (`chunks_to_scan`) now scales with index
+  size instead of a fixed 30 — previously a large document could crowd out
+  a smaller, relevant document's chunks entirely from consideration.
+
+## 2026-07-02 (evening)
+
+### Added
+- `pipeline.py`: orchestrates the full ingest flow (extract -> chunk ->
+  summarize -> store). Deterministic `doc_id` via SHA-256 hash of the URL.
+  Batch ingestion (`ingest_urls`) isolates per-URL failures.
+- `tests/test_pipeline.py`: orchestration logic tested via mocks, no network
+  or real API calls required.
+
+### Fixed
+- `youtube-transcript-api` pinned version (`0.6.3`) didn't support Python
+  3.14; upgraded to `1.2.4`, which required rewriting `extractors/youtube.py`
+  against the new instance-based API (`.fetch()` instead of the old static
+  `.get_transcript()`).
+- `pydantic` pinned version (`2.9.2`) had no prebuilt wheel for Python 3.14
+  on macOS ARM, causing a Rust compilation failure; unpinned to `>=2.10.0`.
+- Case-sensitivity bug: a file replacement briefly left `extractors/Youtube.py`
+  (capital Y) instead of `youtube.py` — invisible to `ls`/`cat`/`grep` on
+  macOS's case-insensitive filesystem, but Python's import system correctly
+  rejected the mismatch. Root-caused and fixed.
+
+## 2026-07-02 (afternoon)
+
+### Added
+- `vectorstore.py`: ChromaDB wrapper. Stores at chunk granularity, collapses
+  results back to document granularity by keeping each document's
+  best-scoring chunk. `upsert` semantics so re-ingesting a URL updates in
+  place rather than duplicating.
+- `tests/test_vectorstore.py`: uses a deterministic fake embedder (not the
+  real model) so the test is fast and has no external dependencies.
+
+## 2026-07-02 (initial)
+
+### Added
+- Project scaffold: `embeddings.py` (`EmbeddingProvider` abstraction, local
+  sentence-transformers implementation), `models.py` (shared data classes),
+  `extractors/web.py` (trafilatura-based article extraction),
+  `extractors/youtube.py` (transcript extraction), `chunking.py`
+  (overlapping ~500-char chunks), `summarizer.py` (Claude Haiku, once per
+  document at ingest time).
+- Git repository initialized, Apache 2.0 license added, made public.
