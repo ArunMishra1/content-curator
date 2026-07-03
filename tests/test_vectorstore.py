@@ -9,7 +9,6 @@ right call here, not a shortcut.
 """
 
 import shutil
-import numpy as np
 from embeddings import EmbeddingProvider
 from models import Document, Chunk
 from vectorstore import VectorStore
