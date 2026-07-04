@@ -311,6 +311,14 @@ a {
   border-color: transparent;
 }
 
+.state-message.empty-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .spinner {
   display: inline-block;
   width: 14px;

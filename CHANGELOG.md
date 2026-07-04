@@ -2,6 +2,7 @@
 
 ## Contents
 
+- [2026-07-04 (product cohesion)](#2026-07-04-product-cohesion)
 - [2026-07-04 (discovery)](#2026-07-04-discovery)
 - [2026-07-04 (frontend)](#2026-07-04-frontend)
 - [2026-07-04 (backups)](#2026-07-04-backups)
@@ -14,6 +15,26 @@
 
 All notable changes to this project, in the order they actually happened.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
+## 2026-07-04 (product cohesion)
+
+### Added
+- Connected `/recommend` and `/discover` in the frontend: when a search
+  returns zero results, the UI now shows a "Search the web for this" button
+  instead of a dead-end message. Clicking it opens the ingest panel,
+  pre-fills the discovery query with the reader profile, and runs the same
+  discovery flow already built — no new backend endpoint needed, purely
+  frontend wiring between two features that already existed independently.
+- Deliberate prioritization call: chose this over several smaller polish
+  items (YouTube title fetching, URL deduplication, retry logic) because it
+  changes what the product *does* rather than making an existing feature
+  slightly more correct — the difference between two features that happen
+  to coexist and one product that holds together.
+- Verified via headless browser: empty-result state renders the CTA,
+  clicking it correctly pre-fills the discovery query with the exact
+  profile text, opens the ingest section, and surfaces real candidates —
+  and a precise bounding-box check (not just a screenshot glance) confirmed
+  no layout overlap between the message and button.
 
 ## 2026-07-04 (discovery)
 

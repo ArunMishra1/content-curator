@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function Home() {
   const [profile, setProfile] = useState("");
@@ -22,6 +22,8 @@ export default function Home() {
   const [discoverCandidates, setDiscoverCandidates] = useState(null);
   const [discoverError, setDiscoverError] = useState("");
   const [selectedCandidates, setSelectedCandidates] = useState(new Set());
+
+  const ingestSectionRef = useRef(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -90,9 +92,10 @@ export default function Home() {
     }
   }
 
-  async function handleDiscover(e) {
-    e.preventDefault();
-    if (!discoverQuery.trim()) return;
+  async function handleDiscover(e, overrideQuery) {
+    if (e) e.preventDefault();
+    const q = overrideQuery ?? discoverQuery;
+    if (!q.trim()) return;
 
     setDiscovering(true);
     setDiscoverError("");
@@ -103,7 +106,7 @@ export default function Home() {
       const res = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: discoverQuery, max_results: 10 }),
+        body: JSON.stringify({ query: q, max_results: 10 }),
       });
       const data = await res.json();
 
@@ -117,6 +120,17 @@ export default function Home() {
     } finally {
       setDiscovering(false);
     }
+  }
+
+  function discoverFromEmptyResults() {
+    setDiscoverQuery(profile);
+    setIngestOpen(true);
+    handleDiscover(null, profile);
+    // Give the ingest section a moment to actually open (React state update)
+    // before scrolling to it, or the scroll target won't exist yet.
+    setTimeout(() => {
+      ingestSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }
 
   function toggleCandidate(url) {
@@ -202,8 +216,11 @@ export default function Home() {
       {searchError && <div className="state-message error">{searchError}</div>}
 
       {results && results.length === 0 && !searchError && (
-        <div className="state-message">
-          Nothing indexed matches this profile well. Add some content below, or try a broader description.
+        <div className="state-message empty-with-action">
+          <div>Nothing indexed matches this profile well yet.</div>
+          <button className="btn-secondary" type="button" onClick={discoverFromEmptyResults} disabled={discovering}>
+            {discovering ? "Searching the web…" : "Search the web for this"}
+          </button>
         </div>
       )}
 
@@ -228,7 +245,7 @@ export default function Home() {
         </div>
       )}
 
-      <section className="ingest-section">
+      <section className="ingest-section" ref={ingestSectionRef}>
         <button
           className={`ingest-toggle ${ingestOpen ? "open" : ""}`}
           onClick={() => setIngestOpen(!ingestOpen)}

@@ -32,6 +32,9 @@
       candidate URLs for a topic without auto-ingesting them; reviewed via
       the web UI before ingestion actually spends anything. Full web
       crawling deliberately rejected — see `DESIGN.md`.
+- [x] Connected `/recommend` and `/discover`: an empty search result now
+      offers a one-click "search the web for this" action instead of being
+      a dead end — turns two separate features into one coherent flow.
 
 ## In progress / next up
 
@@ -66,10 +69,6 @@ Nothing currently in progress. Next priorities, in rough order:
 
 - [ ] `/discover` doesn't yet support Tavily's domain include/exclude
       filters — could let a user restrict discovery to trusted sources.
-- [ ] No connection yet between `/recommend` and `/discover` — if a search
-      returns nothing good for a reader profile, the system could suggest
-      running discovery for that topic automatically instead of leaving
-      the user to think of it themselves.
 - [ ] YouTube video titles aren't fetched (would need a separate YouTube
       Data API key) — video ID is used as a placeholder title.
 - [ ] No retry logic on failed URL fetches (dead link on first try =
