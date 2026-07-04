@@ -2,6 +2,7 @@
 
 ## Contents
 
+- [2026-07-03 (ranking)](#2026-07-03-ranking)
 - [2026-07-03 (restructure)](#2026-07-03-restructure)
 - [2026-07-03](#2026-07-03)
 - [2026-07-02 (evening)](#2026-07-02-evening)
@@ -10,6 +11,33 @@
 
 All notable changes to this project, in the order they actually happened.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
+## 2026-07-03 (ranking)
+
+### Added
+- `src/ranker.py`: query-time LLM re-ranking. `/recommend` now retrieves a
+  broad candidate pool by vector similarity (unchanged), then a Claude
+  Haiku call reasons about which candidates fit the specific reader's
+  profession, expertise level, and time constraints, reordering and
+  trimming the results. Each result now includes a `reason` field
+  explaining the fit. Falls back to plain vector-similarity order if the
+  LLM call fails or returns unparseable output — never a broken response.
+- `tests/test_ranker.py`: covers reordering, hallucinated-ID filtering,
+  graceful fallback on API failure and on bad output, correct behavior
+  when fewer than `top_n` candidates are genuinely a good fit, and the
+  candidate-pool cost cap.
+
+### Changed
+- Considered and rejected two alternative approaches (ingest-time tagging
+  with query-time filtering; a fully embedding-based hybrid with no
+  query-time LLM call at all) in favor of this one — see `DESIGN.md` for
+  the full reasoning and tradeoffs of all three.
+- `/recommend`'s rate limit tightened from 60/minute to 20/minute, since
+  this endpoint now makes a real LLM call per request instead of a pure
+  vector lookup.
+- This reverses part of the "no LLM at query time" principle stated
+  elsewhere in `DESIGN.md` for the base retrieval flow — documented
+  explicitly there rather than silently contradicted.
 
 ## 2026-07-03 (restructure)
 

@@ -5,7 +5,7 @@
 - [Overview](#overview)
 - [Component responsibilities](#component-responsibilities)
 - [Data model](#data-model)
-- [Content classification (not yet built)](#content-classification-not-yet-built)
+- [Content classification](#content-classification)
 - [Why these specific tradeoffs](#why-these-specific-tradeoffs)
 
 ## Overview
@@ -23,32 +23,36 @@ INGEST FLOW
 [src/extractors/web.py or src/extractors/youtube.py]  -- fetch + clean text
    |
    v
-[chunking.py]  -- split into ~500-char overlapping pieces
+[src/chunking.py]  -- split into ~500-char overlapping pieces
    |
    v
-[summarizer.py]  -- one Claude Haiku call, ONCE per document
+[src/summarizer.py]  -- one Claude Haiku call, ONCE per document
    |
    v
-[embeddings.py]  -- local model, text -> 384-dim vector, per chunk
+[src/embeddings.py]  -- local model, text -> 384-dim vector, per chunk
    |
    v
-[vectorstore.py]  -- store chunks + vectors + metadata in ChromaDB
+[src/vectorstore.py]  -- store chunks + vectors + metadata in ChromaDB
 
 
 RECOMMEND FLOW
   profile text ("VP of Engineering, 30 min on LLMs")
    |
    v
-[embeddings.py]  -- embed the profile text the same way as chunks
+[src/embeddings.py]  -- embed the profile text the same way as chunks
    |
    v
-[vectorstore.py]  -- cosine similarity search, top-K chunks
+[src/vectorstore.py]  -- cosine similarity search, broad candidate pool (~15-20 docs)
    |
    v
   collapse chunks -> parent documents, keep best score per doc
    |
    v
-  ranked list of documents with title/url/summary/score
+[src/ranker.py]  -- Claude Haiku reasons about THIS reader's profession,
+   |                expertise, and time constraints; reorders and trims
+   |                (falls back to plain vector order if this call fails)
+   v
+  ranked list of documents with title/url/summary/score/reason
 ```
 
 ## Component responsibilities
@@ -64,9 +68,10 @@ All files below live under `src/` (except `tests/`, which sits at the repo root 
 | `src/chunking.py` | Long text -> overlapping ~500-char pieces | Small enough per-chunk embeddings stay precise; overlap prevents mid-sentence cuts losing meaning |
 | `src/summarizer.py` | Document -> short AI summary | Runs ONCE at ingest time, never at query time (cost/latency control); Claude Haiku, not a larger model, since summarizing is bulk/low-reasoning work |
 | `src/vectorstore.py` | Store + search vectors | Wraps ChromaDB; collapses chunk-level matches to document-level rankings, keeping each doc's best-scoring chunk |
+| `src/ranker.py` | Profession-aware re-ranking | Second-stage LLM reasoning pass over the broad candidate pool; Claude Haiku, capped candidate count, falls back to plain vector order on failure |
 | `src/pipeline.py` | Orchestrates ingest end-to-end | Deterministic `doc_id` (hash of URL) enables safe upsert on re-ingestion; per-`doc_id` lock prevents concurrent-request races; batch ingestion isolates per-URL failures |
 | `src/auth.py` | API key verification | Single static key via `X-API-Key` header, timing-safe comparison |
-| `src/main.py` | HTTP layer | FastAPI app; loads the embedding model at startup (not per-request); rate limits `/ingest` (10/min) and `/recommend` (60/min), keyed by API key |
+| `src/main.py` | HTTP layer | FastAPI app; loads the embedding model at startup (not per-request); rate limits `/ingest` (10/min) and `/recommend` (20/min — tightened from 60/min once `/recommend` started making a real LLM call), keyed by API key |
 
 ## Data model
 
@@ -78,17 +83,20 @@ fragments. The vector store's `query()` method is the bridge: it searches at
 chunk granularity, then re-aggregates to document granularity before returning
 results.
 
-## Content classification (not yet built)
+## Content classification
 
-Right now every ingested item has only a `source_type` field (`article` or
-`youtube`) — no topic taxonomy, difficulty level, or profession-relevance
-tagging. Ranking is pure vector similarity between the profile text and
-content chunks, which matches on *topic* but not on *reading level* or
-*role-relevance* (this is the open problem tracked in `TODO.md`). If a real
-taxonomy is built later (e.g., difficulty tiers, professional domains), it
-would likely live as additional metadata fields on `Document` and get set
-during ingestion — either by the summarizer's LLM call (extend the prompt to
-also classify) or a separate classification step.
+Every ingested item still has only a `source_type` field (`article` or
+`youtube`) — no stored topic taxonomy, difficulty tags, or profession labels
+on documents. Profession/difficulty-awareness in ranking is instead solved
+at query time by `ranker.py` reasoning fresh over each request's specific
+profile, rather than by tagging content in advance (see `DESIGN.md` for why
+tagging was considered and not chosen). This means there's still no
+persistent classification of *what audience a piece of content suits* —
+only a per-query judgment. If a real content taxonomy is ever built
+(e.g., for browsing/filtering by category independent of a search), it
+would live as additional metadata fields on `Document`, set during
+ingestion — either by extending the summarizer's prompt or a separate
+classification step. See `TAXONOMY.md`.
 
 ## Why these specific tradeoffs
 

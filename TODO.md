@@ -14,26 +14,23 @@
 - [x] ChromaDB vector store with chunk-to-document aggregation
 - [x] FastAPI `/ingest`, `/recommend`, `/health` endpoints
 - [x] API key authentication
-- [x] Rate limiting (10/min ingest, 60/min recommend, keyed by API key)
+- [x] Rate limiting (10/min ingest, 20/min recommend, keyed by API key —
+      recommend's limit tightened from an initial 60/min once it started
+      making a real LLM call)
 - [x] Fix race condition on concurrent ingestion of the same URL
 - [x] Fix `.env` loading and silent summarizer failures
 - [x] Fix chunk-scan crowding-out bug (large docs hiding small relevant ones)
+- [x] Profession- and capability-aware recommendations via query-time LLM
+      re-ranking (`ranker.py`) — see `DESIGN.md` for why this approach was
+      chosen over ingest-time tagging alternatives
 
 ## In progress / next up
 
-- [ ] **Profession- and capability-aware recommendations.** Currently pure
-      vector similarity between profile text and content — matches topic,
-      not reading level or role-relevance. Needs an architecture decision
-      before implementation:
-      - Query-time approach: an LLM call interprets the profile's actual
-        needs before searching (higher latency/cost per query, no ingest
-        changes needed).
-      - Ingest-time approach: tag each document with metadata (difficulty,
-        relevant professions) when it's added; query time just filters/matches
-        against tags (cheaper per query, requires re-tagging existing content).
-      - Hybrid: broad retrieval by topic similarity first, then an LLM
-        re-ranks the candidates specifically for the stated profession.
-      Decision not yet made — see conversation/design notes before starting.
+Nothing currently in progress. Next priorities, in rough order:
+
+- [ ] Load testing (see `PERFORMANCE.md`) — nothing has been measured under
+      real concurrent traffic yet
+- [ ] ChromaDB backup / multi-instance story (see backlog below)
 
 ## Backlog — infrastructure
 
@@ -42,6 +39,9 @@
 - [ ] Request coalescing for concurrent ingestion of the same URL (current
       lock fixes correctness but still wastes a duplicate Claude API call
       when two requests race for the same URL — see `DESIGN.md`).
+- [ ] Cache re-ranking results for identical/near-identical profile
+      searches — right now every `/recommend` call triggers a fresh LLM
+      call even if the exact same profile was searched a minute ago.
 - [ ] Per-user API keys instead of one shared static key, if the API is
       ever used by more than one consumer (current rate limit budget is
       shared globally across anyone with the key).

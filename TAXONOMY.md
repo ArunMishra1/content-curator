@@ -27,10 +27,18 @@
 **Recommendation capabilities:**
 - Free-text reader profile as input (e.g. "VP of Engineering who needs to
   understand LLMs in 30 minutes")
-- Ranking by semantic similarity between the profile and content
+- Two-stage ranking: broad vector-similarity retrieval, then an LLM
+  reasoning pass that reorders results for the reader's specific profession,
+  expertise level, and time constraints (not just topic overlap)
+- Each result includes a one-sentence reason explaining why it fits this
+  specific reader — not just a similarity score
 - Returns whole documents (not fragments), each with title, URL, AI summary,
-  and a relevance score
-- Configurable result count (1-20)
+  relevance score, and fit reason
+- Configurable result count (1-20); the reasoning pass may legitimately
+  return fewer than requested if fewer candidates are genuinely a good fit
+  (no padding with weak matches)
+- Falls back to plain vector-similarity ranking if the reasoning pass fails
+  for any reason
 
 **Operational capabilities:**
 - API key authentication on write/query endpoints
@@ -39,25 +47,23 @@
 
 **What it does NOT do yet** (matching-relevant limitations, not just missing
 features):
-- Does not distinguish reading difficulty or professional relevance — see
-  [TODO.md](TODO.md) for the active design work on this
-- Does not classify content by topic/category — there's no taxonomy of
-  content types beyond `article` vs `youtube` as a source-format label (not
-  a subject-matter label)
+- Does not persistently classify content by topic/category — there's no
+  taxonomy of content types beyond `article` vs `youtube` as a
+  source-format label (not a subject-matter label). Profession/difficulty
+  fit is judged fresh per query (see Design reasoning below), not stored.
 - Does not handle PDFs, podcasts, Twitter/X threads, or any source type
   beyond the two listed above
+- Re-ranking reasoning is not cached — an identical profile searched twice
+  triggers two separate LLM calls
 
 ## What's planned
 
 Full detail lives in [TODO.md](TODO.md) — this section is the summary.
 
-Actively being designed: profession/capability-aware ranking, so a "VP of
-Engineering" profile and a "PhD researcher" profile asking about the same
-topic get genuinely different, appropriately-pitched recommendations rather
-than the same results ranked by topic overlap alone.
-
 Backlogged: additional content source types, request coalescing for
-duplicate concurrent ingests, per-user API keys, multi-instance-safe storage.
+duplicate concurrent ingests, per-user API keys, multi-instance-safe
+storage, caching repeated identical profile searches to avoid redundant
+re-ranking calls.
 
 ## How to add a new content source pattern
 

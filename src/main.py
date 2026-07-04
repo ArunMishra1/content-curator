@@ -23,6 +23,7 @@ from slowapi.errors import RateLimitExceeded
 
 from pipeline import ingest_urls, get_embedder, get_vectorstore
 from auth import verify_api_key
+from ranker import rerank_for_profile
 
 
 def _rate_limit_key(request: Request) -> str:
@@ -98,6 +99,7 @@ class RecommendationResponse(BaseModel):
     source_type: str
     summary: str
     score: float
+    reason: str = ""
 
 
 class RecommendResponse(BaseModel):
@@ -124,9 +126,16 @@ def ingest(request: Request, body: IngestRequest, api_key: str = Depends(verify_
 
 
 @app.post("/recommend", response_model=RecommendResponse)
-@limiter.limit("60/minute")  # looser: no LLM call here, just a vector lookup, much cheaper
+@limiter.limit("20/minute")  # tightened from 60/minute: this endpoint now makes a real LLM call, not just a vector lookup
 def recommend(request: Request, body: RecommendRequest, api_key: str = Depends(verify_api_key)) -> RecommendResponse:
-    raw_results = get_vectorstore().query(body.profile, top_n_documents=body.top_n)
+    # Retrieve a broader pool than top_n so the LLM has real choices to reason
+    # over, not just top_n candidates it can only reorder trivially. Capped
+    # by ranker.MAX_CANDIDATES regardless of how large this gets, to bound cost.
+    candidate_pool_size = max(body.top_n * 3, 15)
+    raw_candidates = get_vectorstore().query(body.profile, top_n_documents=candidate_pool_size)
+
+    final_results = rerank_for_profile(body.profile, raw_candidates, body.top_n)
+
     return RecommendResponse(
         profile=body.profile,
         results=[
@@ -137,8 +146,9 @@ def recommend(request: Request, body: RecommendRequest, api_key: str = Depends(v
                 source_type=r["source_type"],
                 summary=r["summary"],
                 score=r["score"],
+                reason=r.get("reason", ""),
             )
-            for r in raw_results
+            for r in final_results
         ],
     )
 

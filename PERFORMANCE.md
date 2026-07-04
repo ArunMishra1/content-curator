@@ -31,10 +31,16 @@ For a single URL, in rough order of cost:
 
 ## Where time goes during recommendation
 
-Much cheaper than ingestion: one embedding call (the profile text), one
-ChromaDB similarity search, no LLM call at all. This asymmetry is
-deliberate — see `DESIGN.md` on why summarization happens at ingest time,
-not query time.
+**This changed as of the profession-aware ranking update — no longer as
+cheap as originally designed.** `/recommend` now does: one embedding call
+(the profile text) + one ChromaDB similarity search (unchanged, fast) +
+one Claude Haiku call reasoning over up to 20 candidate summaries (new —
+this is the main added latency, likely 1-3 seconds, unmeasured precisely).
+Still no LLM call during ingestion-side retrieval itself, and still much
+cheaper than a full ingestion (no fetching, no chunking, no per-document
+summarization) — but the "purely instant, no LLM" property this endpoint
+used to have is gone. See `DESIGN.md` for why that tradeoff was accepted.
+Rate limit tightened from 60/min to 20/min to reflect this.
 
 ## Known bottlenecks and scaling limits
 
@@ -58,7 +64,7 @@ not query time.
   submitted by many concurrent callers, they queue up rather than run in
   parallel. Not a concern unless a single URL is ingested very frequently
   and concurrently.
-- **Rate limits (10/min ingest, 60/min recommend) are shared across all
+- **Rate limits (10/min ingest, 20/min recommend) are shared across all
   callers of the single API key** — see `DESIGN.md`. This is a throughput
   ceiling on the whole app, not per-user.
 
@@ -72,6 +78,10 @@ not query time.
 - Actual dollar cost per 1,000 ingested URLs (would require: Claude Haiku
   pricing x average document length x observed token usage — not yet
   calculated).
+- Actual measured latency of the `/recommend` re-ranking call (`ranker.py`)
+  under real network conditions — estimated at 1-3 seconds but never
+  timed precisely, and never tested with a large (near-`MAX_CANDIDATES`)
+  candidate pool specifically.
 
 If any of these become relevant (e.g. before a real launch), that's the
 list of what to actually measure before optimizing anything.

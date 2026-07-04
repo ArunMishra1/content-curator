@@ -102,7 +102,13 @@ def test_recommend_endpoint_shapes_response_correctly():
         {"doc_id": "id1", "url": "https://example.com/a", "title": "LLM Basics",
          "source_type": "article", "summary": "Covers transformer basics.", "score": 0.87, "matched_chunk": "..."},
     ]
-    with patch("main.get_vectorstore") as mock_get_store:
+    fake_reranked = [
+        {"doc_id": "id1", "url": "https://example.com/a", "title": "LLM Basics",
+         "source_type": "article", "summary": "Covers transformer basics.", "score": 0.87,
+         "reason": "Matches this reader's stated time constraint and expertise level."},
+    ]
+    with patch("main.get_vectorstore") as mock_get_store, \
+         patch("main.rerank_for_profile", return_value=fake_reranked) as mock_rerank:
         mock_get_store.return_value.query.return_value = fake_store_results
         response = client.post(
             "/recommend",
@@ -115,7 +121,34 @@ def test_recommend_endpoint_shapes_response_correctly():
     assert len(body["results"]) == 1
     assert body["results"][0]["title"] == "LLM Basics"
     assert body["results"][0]["score"] == 0.87
-    print("PASS: /recommend correctly shapes vector store results into the API response (with valid auth)")
+    assert body["results"][0]["reason"] == "Matches this reader's stated time constraint and expertise level."
+    mock_rerank.assert_called_once()
+    print("PASS: /recommend correctly shapes reranked results into the API response, including the reason field (with valid auth)")
+
+
+def test_recommend_requests_broader_pool_than_top_n():
+    """
+    The reranker needs real choices to reason over -- if we only ever
+    fetched top_n candidates from the vector store, the LLM would have
+    nothing to actually rerank. Verify the candidate pool requested is
+    larger than top_n.
+    """
+    main, client = make_client()
+    with patch("main.get_vectorstore") as mock_get_store, \
+         patch("main.rerank_for_profile", return_value=[]):
+        mock_get_store.return_value.query.return_value = []
+        client.post(
+            "/recommend",
+            json={"profile": "test profile", "top_n": 3},
+            headers=AUTH_HEADERS,
+        )
+        call_kwargs = mock_get_store.return_value.query.call_args.kwargs
+        requested_pool_size = call_kwargs.get("top_n_documents")
+
+    assert requested_pool_size is not None and requested_pool_size > 3, (
+        f"Expected candidate pool larger than top_n=3, got {requested_pool_size}"
+    )
+    print(f"PASS: /recommend requests a broader candidate pool ({requested_pool_size}) than the requested top_n (3)")
 
 
 def test_recommend_rejects_empty_profile():
@@ -177,6 +210,7 @@ if __name__ == "__main__":
     test_ingest_endpoint_shapes_response_correctly()
     test_ingest_rejects_empty_url_list()
     test_recommend_endpoint_shapes_response_correctly()
+    test_recommend_requests_broader_pool_than_top_n()
     test_recommend_rejects_empty_profile()
     test_recommend_rejects_out_of_range_top_n()
     test_health_endpoint()

@@ -187,5 +187,5 @@ two different purposes — see `README.md` if you're mixing them up.
 ### 429 Too Many Requests
 
 Working as intended — you've hit the rate limit (10/min on `/ingest`,
-60/min on `/recommend`). Wait a minute, or see `DESIGN.md` for why the
+20/min on `/recommend`). Wait a minute, or see `DESIGN.md` for why the
 limit is shared across all callers of a single API key.

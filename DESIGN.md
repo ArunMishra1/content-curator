@@ -2,13 +2,14 @@
 
 ## Contents
 
+- [Ranking: profession-aware LLM re-ranking, not pure vector similarity](#ranking-profession-aware-llm-re-ranking-not-pure-vector-similarity)
 - [Embeddings: local model, not an API](#embeddings-local-model-not-an-api)
 - [Summarization: once, at ingest time, never at query time](#summarization-once-at-ingest-time-never-at-query-time)
 - [Model choice for summarization: Haiku, not a larger model](#model-choice-for-summarization-haiku-not-a-larger-model)
 - [Chunk size: 500 characters, 50 character overlap](#chunk-size-500-characters-50-character-overlap)
 - [doc_id: deterministic hash of the URL, not a random ID](#doc_id-deterministic-hash-of-the-url-not-a-random-id)
 - [Chunk-to-document aggregation: best chunk score, not average](#chunk-to-document-aggregation-best-chunk-score-not-average)
-- [Ranking is pure vector similarity — a known, accepted limitation](#ranking-is-pure-vector-similarity--a-known-accepted-limitation)
+- [Ranking is pure vector similarity — superseded](#ranking-is-pure-vector-similarity--superseded)
 - [Singletons for the embedder and vector store](#singletons-for-the-embedder-and-vector-store)
 - [Auth: one static API key, not JWT/OAuth2](#auth-one-static-api-key-not-jwtoauth2)
 - [Rate limiting: keyed by API key, not IP address](#rate-limiting-keyed-by-api-key-not-ip-address)
@@ -16,6 +17,46 @@
 - [Batch ingestion never fails all-or-nothing](#batch-ingestion-never-fails-all-or-nothing)
 
 This file records *why*, not *what* — for the structure itself, see `ARCHITECTURE.md`.
+
+## Ranking: profession-aware LLM re-ranking, not pure vector similarity
+
+**This reverses part of the "no LLM at query time" position stated below**
+("Summarization: once, at ingest time, never at query time") — worth being
+explicit about, since silently contradicting a documented principle is
+exactly the kind of thing that erodes trust in these docs.
+
+Pure vector similarity (the original v1 approach) matches on topic and
+vocabulary overlap, not on what a specific reader actually needs — a
+VP of Engineering and a PhD researcher asking about the same topic got
+identical rankings, because "similar wording" was the only signal. Fixed by
+adding a second stage: vector search still retrieves a broad candidate pool
+by topic (unchanged, still cheap, still no LLM), but a Claude Haiku call
+then reasons about which candidates actually fit *this reader's* expertise
+level, time constraints, and likely use for the information, and orders them
+accordingly. See `ranker.py`.
+
+Why this tradeoff was accepted despite conflicting with the earlier
+principle: the earlier principle was about avoiding *repeated, avoidable*
+LLM cost (summarizing on every query would multiply cost per search).
+Re-ranking is a different situation — the reasoning genuinely has to happen
+per-query, because it depends on the reader's specific profile, which is
+different every time. There's no way to precompute "the right answer for
+every possible profession" at ingest time without inventing a rigid
+taxonomy that would fail on any profile that doesn't fit a predefined box
+(this was seriously considered — see the ingest-time-tagging alternatives
+that were evaluated and rejected, in project discussion history).
+
+Cost is controlled two ways: the candidate pool sent to the LLM is capped
+(`MAX_CANDIDATES` in `ranker.py`) regardless of how large `top_n` is
+requested, and only short summaries are sent, never full document text.
+`/recommend`'s rate limit was tightened from 60/min to 20/min to reflect
+that this endpoint now has a real cost per call, where it didn't before.
+
+Failure handling follows the same pattern established for summarization
+failures: if the re-rank call fails or returns something unparseable, the
+endpoint falls back to plain vector-similarity order rather than failing
+the whole request — a visible `[WARNING]` is printed either way, consistent
+with this project's rule against silent failure.
 
 ## Embeddings: local model, not an API
 
@@ -60,12 +101,15 @@ A document with one highly relevant paragraph should rank highly even if
 the rest of the document covers something else. Averaging would dilute that
 signal; taking the best-matching chunk's score preserves it.
 
-## Ranking is pure vector similarity — a known, accepted limitation
+## Ranking is pure vector similarity — superseded
 
-Embedding a profile like "VP of Engineering, 30 minutes" against content
-chunks matches on topic/wording, not reading difficulty or time budget. A
-highly technical paper can outrank a well-written primer on the same topic.
-Accepted for v1; tracked as the open problem in `TODO.md`.
+This was the v1 limitation: matching a profile like "VP of Engineering,
+30 minutes" against content chunks matched on topic/wording, not reading
+difficulty or time budget. **Superseded** by the LLM re-ranking stage
+described at the top of this file — vector similarity is still the first
+retrieval pass, but it's no longer the final ranking. Left here, marked
+superseded rather than deleted, so the reasoning trail for why this was a
+real limitation (and what specifically was fixed) stays intact.
 
 ## Singletons for the embedder and vector store
 

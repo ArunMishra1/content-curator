@@ -52,16 +52,16 @@ AI-generated summaries. See `README.md` for the user-facing overview,
 
 ## Known gaps — see TODO.md for the full list, but the two biggest:
 
-1. **Ranking is pure vector similarity, not profession/difficulty-aware.**
-   A VP-of-Engineering-appropriate primer and a PhD-level paper on the same
-   topic currently score similarly if they use similar vocabulary. This is
-   the active area of work — check `TODO.md` for the current state of the
-   design discussion before starting on this, since an architecture
-   decision (query-time LLM re-ranking vs. ingest-time tagging) needs to be
-   made before implementation.
-2. **ChromaDB is a single local file** — no backup, no multi-instance
-   deployment story. Fine for current use, a real gap before any
-   production/multi-user deployment.
+1. **ChromaDB is a single local file** — no backup, no multi-instance
+   deployment story. The real gap before any production/multi-user use.
+2. **Re-ranking results aren't cached.** Every `/recommend` call triggers a
+   fresh LLM call in `src/ranker.py`, even for an identical profile
+   searched moments ago. Not urgent at current traffic, but a real cost
+   optimization opportunity if usage grows.
+
+(Resolved: profession/difficulty-aware ranking, previously listed here as
+the top gap, was built via query-time LLM re-ranking — see `DESIGN.md` and
+`src/ranker.py`.)
 
 ## Style conventions
 
