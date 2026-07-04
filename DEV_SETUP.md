@@ -11,6 +11,7 @@
 - [6. Run the server](#6-run-the-server)
 - [7. Try it for real](#7-try-it-for-real)
 - [If something breaks](#if-something-breaks)
+- [Backing up your data](#backing-up-your-data)
 
 ## Prerequisites
 
@@ -83,9 +84,9 @@ Copy the output into `.env`. Never commit `.env` itself — it's already in
 ## 5. Run the test suite
 
 ```bash
-PYTHONPATH=. python3 tests/test_vectorstore.py
-PYTHONPATH=. python3 tests/test_pipeline.py
-PYTHONPATH=. python3 tests/test_main.py
+PYTHONPATH=src python3 tests/test_vectorstore.py
+PYTHONPATH=src python3 tests/test_pipeline.py
+PYTHONPATH=src python3 tests/test_main.py
 ```
 
 Each should print `ALL TESTS PASSED`. These tests don't need your API keys
@@ -95,7 +96,7 @@ or internet access — they mock external dependencies (see
 ## 6. Run the server
 
 ```bash
-python3 -m uvicorn main:app --reload
+python3 -m uvicorn main:app --reload --app-dir src
 ```
 
 First request will pause briefly while the local embedding model downloads
@@ -140,3 +141,45 @@ request/response shapes without writing `curl` commands by hand.
 Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) first — most issues hit
 during this project's own development are documented there with the actual
 fix, not a generic suggestion.
+
+## Backing up your data
+
+`chroma_data/` is your entire index — every ingested document and its
+embeddings live there, and there's currently no automatic durability beyond
+whatever's on your disk (see `TODO.md`/`DESIGN.md` for the bigger
+infrastructure options this project deliberately isn't using yet).
+
+Run a backup manually anytime:
+
+```bash
+./scripts/backup_chroma.sh
+```
+
+By default this writes timestamped zip files to `~/content-curator-backups`
+and automatically keeps only the most recent 14, deleting older ones.
+
+**Point it somewhere that actually survives a disk failure**, not just a
+different folder on the same disk — a Dropbox/Google Drive/iCloud Drive
+folder is the easiest way to get real off-machine protection without
+setting up anything new:
+
+```bash
+BACKUP_DIR=~/Dropbox/content-curator-backups ./scripts/backup_chroma.sh
+```
+
+**Restoring** from a backup (this safely moves your current `chroma_data/`
+aside first, rather than deleting it, in case the restore isn't what you
+wanted):
+
+```bash
+./scripts/restore_chroma.sh ~/content-curator-backups/chroma_data_backup_2026-07-04_10-30-00.zip
+```
+
+**Automating it on macOS:** the obvious move is a cron job, but macOS's
+cron has a real, common gotcha — it often lacks the permissions
+(Full Disk Access) needed to actually run reliably, and fails silently. A
+`launchd` user agent is the more reliable native alternative on macOS, if
+you want this fully automatic rather than a manual habit. Not set up by
+default in this project — a manual `./scripts/backup_chroma.sh` before
+anything risky (a big ingest run, an upgrade, cleaning old data) is a
+reasonable habit until/unless you set up real scheduling.

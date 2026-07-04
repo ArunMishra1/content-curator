@@ -23,6 +23,9 @@
 - [x] Profession- and capability-aware recommendations via query-time LLM
       re-ranking (`ranker.py`) — see `DESIGN.md` for why this approach was
       chosen over ingest-time tagging alternatives
+- [x] Manual backup/restore scripts for `chroma_data/` (`scripts/backup_chroma.sh`,
+      `scripts/restore_chroma.sh`) — protects against accidental deletion
+      and disk corruption if pointed at an off-machine destination
 
 ## In progress / next up
 
@@ -30,12 +33,15 @@ Nothing currently in progress. Next priorities, in rough order:
 
 - [ ] Load testing (see `PERFORMANCE.md`) — nothing has been measured under
       real concurrent traffic yet
-- [ ] ChromaDB backup / multi-instance story (see backlog below)
 
 ## Backlog — infrastructure
 
-- [ ] ChromaDB is a single local file — no backup, no multi-instance
-      deployment story. Needed before any real multi-user or production use.
+- [ ] ChromaDB multi-instance support (client-server mode, managed vector
+      DB, or Postgres+pgvector — see `DESIGN.md` for the full comparison).
+      Deliberately deferred: solves a problem this project doesn't have yet
+      (running more than one server instance). Revisit when that becomes
+      real, not before. Basic data-loss protection is already covered by
+      `scripts/backup_chroma.sh`.
 - [ ] Request coalescing for concurrent ingestion of the same URL (current
       lock fixes correctness but still wastes a duplicate Claude API call
       when two requests race for the same URL — see `DESIGN.md`).

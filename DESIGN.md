@@ -15,6 +15,7 @@
 - [Rate limiting: keyed by API key, not IP address](#rate-limiting-keyed-by-api-key-not-ip-address)
 - [Per-doc_id locking, not request coalescing](#per-doc_id-locking-not-request-coalescing)
 - [Batch ingestion never fails all-or-nothing](#batch-ingestion-never-fails-all-or-nothing)
+- [Data durability: manual backup script, not a database migration](#data-durability-manual-backup-script-not-a-database-migration)
 
 This file records *why*, not *what* — for the structure itself, see `ARCHITECTURE.md`.
 
@@ -155,3 +156,36 @@ current traffic levels.
 success or a specific failure reason — rather than raising on the first bad
 URL and losing the rest. A 20-URL batch with 1 dead link should produce 19
 successes and 1 clearly reported failure, not a crashed process.
+
+## Data durability: manual backup script, not a database migration
+
+`chroma_data/` is a single local file with no built-in backup or
+multi-instance support. Two genuinely separate problems get bundled under
+that description: **durability** (losing the disk = losing everything) and
+**multi-instance access** (running more than one server, all sharing data).
+
+Four options were compared: (1) a scheduled backup script copying
+`chroma_data/` elsewhere, (2) running ChromaDB in client-server mode so
+multiple app instances share one Chroma process, (3) migrating to a managed
+vector database (Chroma Cloud, Pinecone, Qdrant, etc.), (4) migrating to
+Postgres with the `pgvector` extension, unifying vector and relational
+storage.
+
+Chose (1). Reasoning: this project currently has exactly one real risk —
+losing a laptop's disk — not a multi-instance requirement. Options 2-4 all
+solve problems that don't exist yet (running multiple server copies, a
+growing relational data model) at real cost (new infrastructure to run and
+monitor, or real migration effort). Building for a scaling need before it
+exists is the same mistake as the ingest-time tagging taxonomy that was
+evaluated and rejected for ranking — solving a hypothetical future problem
+at real present cost. `scripts/backup_chroma.sh` and
+`scripts/restore_chroma.sh` handle the actual current risk in about 15
+minutes of setup.
+
+Explicitly NOT solved by this: multi-instance deployment. If this project
+ever needs to run more than one server copy — real user growth, uptime
+requirements — that's the point to revisit options 2-4, not before. Also
+worth naming: a backup script only protects against disk failure if its
+destination is actually off the original machine (a cloud-synced folder,
+not a different folder on the same disk) — the script warns explicitly if
+misconfigured to write inside the project's own directory.

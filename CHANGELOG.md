@@ -2,6 +2,7 @@
 
 ## Contents
 
+- [2026-07-04 (backups)](#2026-07-04-backups)
 - [2026-07-03 (ranking)](#2026-07-03-ranking)
 - [2026-07-03 (restructure)](#2026-07-03-restructure)
 - [2026-07-03](#2026-07-03)
@@ -11,6 +12,23 @@
 
 All notable changes to this project, in the order they actually happened.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
+## 2026-07-04 (backups)
+
+### Added
+- `scripts/backup_chroma.sh` and `scripts/restore_chroma.sh` — manual
+  backup/restore for `chroma_data/`, with automatic retention (keeps last
+  14 backups by default) and a safety copy on restore (never silently
+  overwrites existing data). Warns explicitly if configured to back up to
+  a location on the same disk as the original, which defeats the point.
+- Documented in `DEV_SETUP.md`'s new "Backing up your data" section,
+  including the macOS `cron`-permissions gotcha for anyone automating it.
+
+### Changed
+- Considered and deferred three bigger infrastructure options (ChromaDB
+  client-server mode, managed vector DB, Postgres+pgvector) in favor of
+  this — see `DESIGN.md` for the full comparison and why. Logged as a
+  deliberately-deferred backlog item in `TODO.md`, not dropped.
 
 ## 2026-07-03 (ranking)
 
