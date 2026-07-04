@@ -26,11 +26,19 @@
 - [x] Manual backup/restore scripts for `chroma_data/` (`scripts/backup_chroma.sh`,
       `scripts/restore_chroma.sh`) — protects against accidental deletion
       and disk corruption if pointed at an off-machine destination
+- [x] Minimal web UI (`frontend/`) — Next.js, server-side proxy pattern so
+      the API key never reaches the browser
+- [x] Content discovery via Tavily search API (`/discover`) — finds
+      candidate URLs for a topic without auto-ingesting them; reviewed via
+      the web UI before ingestion actually spends anything. Full web
+      crawling deliberately rejected — see `DESIGN.md`.
 
 ## In progress / next up
 
 Nothing currently in progress. Next priorities, in rough order:
 
+- [ ] Continue backend hardening backlog below (retry logic, YouTube
+      titles, deduplication, structured logging)
 - [ ] Load testing (see `PERFORMANCE.md`) — nothing has been measured under
       real concurrent traffic yet
 
@@ -56,6 +64,12 @@ Nothing currently in progress. Next priorities, in rough order:
 
 ## Backlog — content quality
 
+- [ ] `/discover` doesn't yet support Tavily's domain include/exclude
+      filters — could let a user restrict discovery to trusted sources.
+- [ ] No connection yet between `/recommend` and `/discover` — if a search
+      returns nothing good for a reader profile, the system could suggest
+      running discovery for that topic automatically instead of leaving
+      the user to think of it themselves.
 - [ ] YouTube video titles aren't fetched (would need a separate YouTube
       Data API key) — video ID is used as a placeholder title.
 - [ ] No retry logic on failed URL fetches (dead link on first try =

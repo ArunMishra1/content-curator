@@ -202,6 +202,55 @@ def test_ingest_rate_limit_enforced():
     print("PASS: /ingest enforces its 10/minute rate limit on the 11th call")
 
 
+def test_discover_requires_api_key():
+    main, client = make_client()
+    response = client.post("/discover", json={"query": "LLM basics"})
+    assert response.status_code == 401, response.text
+    print("PASS: /discover rejects requests with no API key")
+
+
+def test_discover_endpoint_shapes_response_correctly():
+    main, client = make_client()
+    fake_results = [
+        {"url": "https://example.com/a", "title": "Article A", "snippet": "About the topic."},
+    ]
+    with patch("main.discover_urls", return_value=fake_results):
+        response = client.post("/discover", json={"query": "LLM basics", "max_results": 5}, headers=AUTH_HEADERS)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["query"] == "LLM basics"
+    assert len(body["results"]) == 1
+    assert body["results"][0]["url"] == "https://example.com/a"
+    print("PASS: /discover correctly shapes results into the API response")
+
+
+def test_discover_rejects_empty_query():
+    main, client = make_client()
+    response = client.post("/discover", json={"query": ""}, headers=AUTH_HEADERS)
+    assert response.status_code == 422, "Empty query should be rejected by validation"
+    print("PASS: /discover rejects an empty query")
+
+
+def test_discover_returns_clean_error_on_missing_tavily_key():
+    main, client = make_client()
+    with patch("main.discover_urls", side_effect=RuntimeError("TAVILY_API_KEY environment variable is not set.")):
+        response = client.post("/discover", json={"query": "test"}, headers=AUTH_HEADERS)
+
+    assert response.status_code == 500, response.text
+    assert "TAVILY_API_KEY" in response.json()["detail"]
+    print("PASS: /discover returns a clear 500 error when TAVILY_API_KEY is missing, not a broken response")
+
+
+def test_discover_returns_clean_error_on_tavily_failure():
+    main, client = make_client()
+    with patch("main.discover_urls", side_effect=Exception("Tavily rate limit exceeded")):
+        response = client.post("/discover", json={"query": "test"}, headers=AUTH_HEADERS)
+
+    assert response.status_code == 502, response.text
+    print("PASS: /discover returns a clean 502 error on a genuine Tavily API failure")
+
+
 if __name__ == "__main__":
     test_ingest_requires_api_key()
     test_ingest_rejects_wrong_api_key()
@@ -215,4 +264,9 @@ if __name__ == "__main__":
     test_recommend_rejects_out_of_range_top_n()
     test_health_endpoint()
     test_ingest_rate_limit_enforced()
+    test_discover_requires_api_key()
+    test_discover_endpoint_shapes_response_correctly()
+    test_discover_rejects_empty_query()
+    test_discover_returns_clean_error_on_missing_tavily_key()
+    test_discover_returns_clean_error_on_tavily_failure()
     print("\nALL TESTS PASSED")

@@ -15,7 +15,7 @@ gets consistent latency.
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, HTTPException
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -24,6 +24,7 @@ from slowapi.errors import RateLimitExceeded
 from pipeline import ingest_urls, get_embedder, get_vectorstore
 from auth import verify_api_key
 from ranker import rerank_for_profile
+from discover import discover_urls
 
 
 def _rate_limit_key(request: Request) -> str:
@@ -87,6 +88,22 @@ class IngestResponse(BaseModel):
     results: List[IngestResultResponse]
 
 
+class DiscoverRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="Topic to find candidate content for, e.g. 'LLM architecture explainers'")
+    max_results: int = Field(default=10, ge=1, le=20, description="Number of candidate URLs to return")
+
+
+class DiscoverResultResponse(BaseModel):
+    url: str
+    title: str
+    snippet: str
+
+
+class DiscoverResponse(BaseModel):
+    query: str
+    results: List[DiscoverResultResponse]
+
+
 class RecommendRequest(BaseModel):
     profile: str = Field(..., min_length=1, description="Description of the reader and their goal, e.g. 'VP of Engineering who needs to understand LLMs in 30 minutes'")
     top_n: int = Field(default=5, ge=1, le=20, description="Number of results to return")
@@ -122,6 +139,32 @@ def ingest(request: Request, body: IngestRequest, api_key: str = Depends(verify_
             IngestResultResponse(url=r.url, success=r.success, doc_id=r.doc_id, title=r.title, error=r.error)
             for r in results
         ],
+    )
+
+
+@app.post("/discover", response_model=DiscoverResponse)
+@limiter.limit("10/minute")  # same caution as /ingest: real external API cost per call
+def discover(request: Request, body: DiscoverRequest, api_key: str = Depends(verify_api_key)) -> DiscoverResponse:
+    """
+    Finds candidate URLs for a topic via Tavily. Deliberately does NOT
+    ingest them -- see discover.py's docstring for why. The caller (or the
+    UI) reviews these and calls /ingest separately with whichever ones are
+    actually worth the summarization cost.
+    """
+    try:
+        results = discover_urls(body.query, max_results=body.max_results)
+    except RuntimeError as e:
+        # TAVILY_API_KEY not configured -- a server setup problem, not the caller's fault
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        # Genuine Tavily API failure (rate limit, network, bad key, etc.) -- no sensible
+        # fallback exists here (unlike ranker.py) since there's nothing to show without
+        # a working search, so this becomes a clean error instead of a broken response.
+        raise HTTPException(status_code=502, detail=f"Content discovery failed: {e}")
+
+    return DiscoverResponse(
+        query=body.query,
+        results=[DiscoverResultResponse(**r) for r in results],
     )
 
 

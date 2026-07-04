@@ -3,6 +3,7 @@
 ## Contents
 
 - [Ranking: profession-aware LLM re-ranking, not pure vector similarity](#ranking-profession-aware-llm-re-ranking-not-pure-vector-similarity)
+- [Content discovery: search API + review step, not a web crawler](#content-discovery-search-api--review-step-not-a-web-crawler)
 - [Embeddings: local model, not an API](#embeddings-local-model-not-an-api)
 - [Summarization: once, at ingest time, never at query time](#summarization-once-at-ingest-time-never-at-query-time)
 - [Model choice for summarization: Haiku, not a larger model](#model-choice-for-summarization-haiku-not-a-larger-model)
@@ -58,6 +59,54 @@ failures: if the re-rank call fails or returns something unparseable, the
 endpoint falls back to plain vector-similarity order rather than failing
 the whole request — a visible `[WARNING]` is printed either way, consistent
 with this project's rule against silent failure.
+
+## Content discovery: search API + review step, not a web crawler
+
+The original ingest flow required a user to already have specific URLs in
+mind. "Find me content on a topic automatically" was a real, reasonable
+ask -- but there were two very different ways to build it, with very
+different cost.
+
+**Rejected: building an actual web crawler** (follow links, discover pages,
+build our own index). This was evaluated seriously, not dismissed casually.
+Reasons against: real crawling requires per-domain rate limiting and
+robots.txt compliance to avoid getting blocked (or being a bad actor);
+a large and growing share of the web is JavaScript-rendered and invisible
+to a basic fetch, requiring a headless browser per page; bot detection and
+crawler traps are open-ended engineering problems; and relevance ranking at
+crawl scale is genuinely one of the hardest problems in software (it's
+most of what Google's engineering effort goes toward). Separately, the
+legal footing is real and unsettled -- most sites' ToS prohibit automated
+scraping, and cases like *hiQ v. LinkedIn* show the law itself hasn't
+settled how enforceable that is. None of this is worth taking on to solve
+"find some good sources on a topic" for a personal tool.
+
+**Chosen: a search API, feeding into the existing ingest pipeline
+unchanged.** A provider that already crawled the web, dealt with the legal
+questions under their own terms, and built relevance ranking, is doing the
+hard part professionally. `discover.py` just calls one, gets back
+candidate URLs, and hands the ones worth keeping to the ingest flow that
+already existed.
+
+**Provider choice: Tavily, not Bing/Google/Brave.** Checked current status
+before committing, since this space moves fast: Bing's Search API was
+fully retired in August 2025 (dead end). Google's Custom Search JSON API is
+closed to new signups as of 2025 and sunsetting entirely by 2027 (also a
+dead end for a new integration). Brave Search API is real and viable but
+dropped its free tier in February 2026 -- now requires a credit card for
+even light use. Tavily's free tier (1,000 queries/month, no card) costs
+nothing to start with, and it's purpose-built for exactly this use case --
+returning content shaped for feeding into an LLM pipeline, not raw SERP
+links meant for a human to click through.
+
+**Discovery and ingestion are two separate steps, on purpose.** `/discover`
+only returns candidates -- it does not call `/ingest` automatically. Each
+ingested document costs a real Claude summarization call; auto-ingesting
+whatever a search API returns risks spending that cost on irrelevant
+results the caller never wanted. The web UI reflects this directly:
+discovered candidates appear with checkboxes, selected ones get added to
+the same reviewable URL textarea used for manual entry, and the existing
+"Ingest" button -- unchanged -- is what actually spends anything.
 
 ## Embeddings: local model, not an API
 

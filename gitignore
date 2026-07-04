@@ -1,0 +1,17 @@
+# Secrets — never commit these
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ChromaDB persistence (local data, not code — don't version it)
+chroma_data/
+chroma_data_before_restore_*/
+backups/
+
+# OS junk
+.DS_Store

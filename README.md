@@ -1,20 +1,19 @@
 <p align="center">
-  <img src="assets/logo.png" alt="content-curator — ingest anything, rank what matters" width="480">
+  <img src="assets/logo.svg" alt="content-curator — ingest anything, rank what matters" width="480">
 </p>
 
 # AI Content Curator
 
 ## Contents
 
-- [AI Content Curator](#ai-content-curator)
-  - [Contents](#contents)
-  - [What this does](#what-this-does)
-  - [Status](#status)
-  - [Quick start](#quick-start)
-  - [Architecture at a glance](#architecture-at-a-glance)
-  - [API](#api)
-  - [Documentation index](#documentation-index)
-  - [License](#license)
+- [What this does](#what-this-does)
+- [Status](#status)
+- [Quick start](#quick-start)
+- [Architecture at a glance](#architecture-at-a-glance)
+- [API](#api)
+- [Frontend](#frontend)
+- [Documentation index](#documentation-index)
+- [License](#license)
 
 ## What this does
 
@@ -59,11 +58,24 @@ Two authenticated endpoints (`X-API-Key` header required), plus a public
 health check:
 
 - `POST /ingest` — add one or more URLs to the index
+- `POST /discover` — find candidate URLs for a topic (via Tavily), without ingesting them
 - `POST /recommend` — get ranked recommendations for a reader profile
 - `GET /health` — liveness check, no auth required
 
 Full request/response shapes are in `src/main.py`'s Pydantic models, or via the
 auto-generated docs at `http://localhost:8000/docs` once the server is running.
+
+`/discover` requires a `TAVILY_API_KEY` in `.env` (free tier: 1,000 queries/month,
+no credit card). It deliberately does NOT auto-ingest what it finds — see
+`DESIGN.md` for why — you review candidates and ingest the ones worth it via
+the normal `/ingest` call (the web UI does this for you).
+
+## Frontend
+
+A minimal web UI lives in `frontend/` (Next.js) — search by reader profile,
+see ranked results with fit explanations, add content to the index. Talks
+to the backend through server-side proxy routes so the API key never
+reaches the browser. See `frontend/README.md` for setup.
 
 ## Documentation index
 

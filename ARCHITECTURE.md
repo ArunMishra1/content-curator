@@ -69,6 +69,7 @@ All files below live under `src/` (except `tests/`, which sits at the repo root 
 | `src/summarizer.py` | Document -> short AI summary | Runs ONCE at ingest time, never at query time (cost/latency control); Claude Haiku, not a larger model, since summarizing is bulk/low-reasoning work |
 | `src/vectorstore.py` | Store + search vectors | Wraps ChromaDB; collapses chunk-level matches to document-level rankings, keeping each doc's best-scoring chunk |
 | `src/ranker.py` | Profession-aware re-ranking | Second-stage LLM reasoning pass over the broad candidate pool; Claude Haiku, capped candidate count, falls back to plain vector order on failure |
+| `src/discover.py` | Find candidate URLs for a topic | Wraps the Tavily search API; deliberately does NOT ingest results — see `DESIGN.md` |
 | `src/pipeline.py` | Orchestrates ingest end-to-end | Deterministic `doc_id` (hash of URL) enables safe upsert on re-ingestion; per-`doc_id` lock prevents concurrent-request races; batch ingestion isolates per-URL failures |
 | `src/auth.py` | API key verification | Single static key via `X-API-Key` header, timing-safe comparison |
 | `src/main.py` | HTTP layer | FastAPI app; loads the embedding model at startup (not per-request); rate limits `/ingest` (10/min) and `/recommend` (20/min — tightened from 60/min once `/recommend` started making a real LLM call), keyed by API key |

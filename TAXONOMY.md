@@ -15,6 +15,14 @@
 - YouTube videos — transcript/caption text extracted directly, no video/audio
   processing
 
+**Discovery capabilities:**
+- Given a topic (not a URL), finds real candidate content via the Tavily
+  search API — returns titles, URLs, and preview snippets
+- Deliberately does not auto-ingest discovered candidates — review, then
+  ingest explicitly (see `DESIGN.md` for why)
+- No web crawling — uses an external search index rather than building one,
+  a deliberate choice covered in `DESIGN.md`
+
 **Ingestion capabilities:**
 - Deduplication by exact URL match (re-ingesting the same URL updates the
   existing entry rather than duplicating it)
